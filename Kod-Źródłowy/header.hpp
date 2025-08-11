@@ -10,7 +10,6 @@
 #include <mutex>
 #include <random>
 #include <thread>
-#include <vector>
 #include <Windows.h>
 
 class Pracownik
