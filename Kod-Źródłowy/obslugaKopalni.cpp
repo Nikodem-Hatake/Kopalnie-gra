@@ -112,7 +112,8 @@ std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, std::list <std::
 						std::unique_lock <std::mutex> blokada(blokadaDostepuDoKasy);
 						kasa -= kosztNowegoPracownika;
 						//Dodanie nowego pracownika do kopalni oraz uruchomienie w¹tku dla niego.
-						std::string imieDlaPracownika = "Pracownik" + static_cast <char> (48 + kopalnia.size());
+						std::string imieDlaPracownika = "Pracownik";
+						imieDlaPracownika += static_cast <char> (48 + kopalnia.size());
 						kopalnia.emplace_back(static_cast <uint64_t> (10 * (numerKopalni + 1)), imieDlaPracownika,
 						static_cast <uint16_t> (1), static_cast <uint16_t> (1));
 						watki.emplace_back([&]
