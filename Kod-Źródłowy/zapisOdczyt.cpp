@@ -1,6 +1,6 @@
 #include "header.hpp"
 
-void Odczyt(std::atomic_uint64_t & kasa, std::vector <std::vector <Pracownik>> & kopalnie)
+void Odczyt(std::atomic_uint64_t & kasa, std::list <std::list <Pracownik>> & kopalnie)
 {
 	std::fstream plik;
 	plik.open("save.txt", std::ios::in | std::ios::binary);
@@ -34,7 +34,7 @@ void Odczyt(std::atomic_uint64_t & kasa, std::vector <std::vector <Pracownik>> &
 	plik.close();
 }
 
-void Zapis(std::atomic_uint64_t & kasa, std::vector <std::vector <Pracownik>> & kopalnie)
+void Zapis(std::atomic_uint64_t & kasa, std::list <std::list <Pracownik>> & kopalnie)
 {
 	std::fstream plik;
 	plik.open("save.txt", std::ios::out);
@@ -45,16 +45,16 @@ void Zapis(std::atomic_uint64_t & kasa, std::vector <std::vector <Pracownik>> & 
 		return;
 	}
 	plik << kasa << ' ' << kopalnie.size() << '\n';	//Iloœæ pieniêdzy oraz kopalni.
-	for(const std::vector <Pracownik> & kopalnia : kopalnie)
+	for(const std::list <Pracownik> & kopalnia : kopalnie)
 	{
 		plik << kopalnia.size() << '\n';	//Iloœæ pracowników w pojedyñczej kopalni.
-		for(size_t indeks = 0; indeks < kopalnia.size(); indeks ++)
+		for(auto iterator = kopalnia.begin(); iterator != kopalnia.end(); iterator ++)
 		{
 			//Poziom ilosci wydobywanych z³ó¿ oraz poziom prêdkoœci kopania w milisekundach.
-			plik << static_cast <short> (kopalnia[indeks].ulepszenia[0].first) << ' ';
-			plik << static_cast <short> (kopalnia[indeks].ulepszenia[1].first) << ' ';
+			plik << static_cast <short> (iterator -> ulepszenia[0].first) << ' ';
+			plik << static_cast <short> (iterator -> ulepszenia[1].first) << ' ';
 			//Koszty ulepszeñ oraz imie danego pracownika.
-			plik << kopalnia[indeks].ulepszenia[0].second.second << ' ' << kopalnia[indeks].imie << '\n';
+			plik << iterator -> ulepszenia[0].second.second << ' ' << iterator -> imie << '\n';
 		}
 	}
 	plik.close();

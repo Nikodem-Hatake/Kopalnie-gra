@@ -22,7 +22,7 @@ class Pracownik
 	uint16_t predkoscKopaniaWMilisekundach;	//Prêdkoœæ w jakiej odbywa siê jedno wykopanie.
 	std::string imie;	//Imie pracownika.
 
-	friend void Zapis(std::atomic_uint64_t & kasa, std::vector <std::vector <Pracownik>> & kopalnie);
+	friend void Zapis(std::atomic_uint64_t & kasa, std::list <std::list <Pracownik>> & kopalnie);
 
 	public:
 	void Kopanie(std::atomic_bool & czyTrwaGra, std::atomic_uint64_t & kasa,
@@ -42,10 +42,10 @@ void Lobby();
 void LobbyGry(std::atomic_uint64_t & kasa);
 void LobbyObslugiKopalni(char & numerKopalni, uint64_t && iloscPracownikow, std::atomic_uint64_t & kasa);
 void LobbyObslugiPracownika(std::atomic_uint64_t & kasa);
-void ObslugaKopalni(std::vector <Pracownik> & kopalnia, char & numerKopalni, std::atomic_bool & czyTrwaGra,
+void ObslugaKopalni(std::list <Pracownik> & kopalnia, char & numerKopalni, std::atomic_bool & czyTrwaGra,
 std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, std::list <std::thread> & watki);
 void ObslugaPracownika(std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, Pracownik & pracownik);
-void Odczyt(std::atomic_uint64_t & kasa, std::vector <std::vector <Pracownik>> & kopalnie);
-void Zapis(std::atomic_uint64_t & kasa, std::vector <std::vector <Pracownik>> & kopalnie);
+void Odczyt(std::atomic_uint64_t & kasa, std::list <std::list <Pracownik>> & kopalnie);
+void Zapis(std::atomic_uint64_t & kasa, std::list <std::list <Pracownik>> & kopalnie);
 
 #endif

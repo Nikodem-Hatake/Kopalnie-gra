@@ -47,7 +47,7 @@ void ObslugaPracownika(std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuD
 	}
 }
 
-void ObslugaKopalni(std::vector <Pracownik> & kopalnia, char & numerKopalni, std::atomic_bool & czyTrwaGra,
+void ObslugaKopalni(std::list <Pracownik> & kopalnia, char & numerKopalni, std::atomic_bool & czyTrwaGra,
 std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, std::list <std::thread> & watki)
 {
 	bool czyWyjscZObslugiKopalni = false;
@@ -77,7 +77,13 @@ std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, std::list <std::
 					if(wyborPracownika >= 48 && wyborPracownika <= 47 + kopalnia.size())
 					{
 						wyborPracownika -= 48;
-						ObslugaPracownika(kasa, blokadaDostepuDoKasy, kopalnia[wyborPracownika]);
+						//Przesuniêcie iteratora na wybranego pracownika.
+						auto iterator = kopalnia.begin();
+						while(wyborPracownika --)
+						{
+							iterator ++;
+						}
+						ObslugaPracownika(kasa, blokadaDostepuDoKasy, * iterator);
 					}
 					else
 					{
@@ -94,8 +100,7 @@ std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, std::list <std::
 				}
 				else
 				{
-					uint64_t kosztNowegoPracownika;
-					kosztNowegoPracownika = (numerKopalni + 1) * (kopalnia.size() + 1) * 1000;
+					uint64_t kosztNowegoPracownika = (numerKopalni + 1) * (kopalnia.size() + 1) * 1000;
 					std::cout << "Ilosc pieniedzy: " << kasa << '\n';
 					std::cout << "Koszt nowego pracownika: " << kosztNowegoPracownika << '\n';
 					std::cout << "Czy chcesz kupic nowego pracownika?" << '\n';
@@ -106,8 +111,7 @@ std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, std::list <std::
 					{
 						std::unique_lock <std::mutex> blokada(blokadaDostepuDoKasy);
 						kasa -= kosztNowegoPracownika;
-						blokada.unlock();
-						//Dodanie nowego pracownika do kopalni.
+						//Dodanie nowego pracownika do kopalni oraz uruchomienie w¹tku dla niego.
 						std::string imieDlaPracownika = "Pracownik" + static_cast <char> (48 + kopalnia.size());
 						kopalnia.emplace_back(static_cast <uint64_t> (10 * (numerKopalni + 1)), imieDlaPracownika,
 						static_cast <uint16_t> (1), static_cast <uint16_t> (1));
@@ -115,6 +119,7 @@ std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, std::list <std::
 						{
 							kopalnia.back().Kopanie(czyTrwaGra, kasa, (numerKopalni + 1) * 2, blokadaDostepuDoKasy);
 						});
+						blokada.unlock();
 						std::cout << "Zakup udany ^^" << '\n';
 
 					}

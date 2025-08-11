@@ -7,7 +7,7 @@ void Gra()
 	std::atomic_uint64_t kasa = 0;
 	std::list <std::thread> watki;
 	std::mutex blokadaDostepuDoKasy;	//U¿ywane przy dostêpie do kasy, ¿eby by³a ona prawid³owa.
-	std::vector <std::vector <Pracownik>> kopalnie;
+	std::list <std::list <Pracownik>> kopalnie;
 	Odczyt(kasa, kopalnie);
 	if(kopalnie.empty())	//Je¿eli w savie nic nie by³o b¹dŸ nie móg³ byæ otworzony.
 	{
@@ -17,7 +17,7 @@ void Gra()
 	}
 	uint64_t numerKopalni = 0;
 	//Uruchamianie funkcji kopania dla ka¿dego pracownika z ka¿dej kopalni jako oddzielny w¹tek.
-	for(std::vector <Pracownik> & kopalnia : kopalnie)
+	for(std::list <Pracownik> & kopalnia : kopalnie)
 	{
 		numerKopalni ++;
 		for(Pracownik & pracownik : kopalnia)
@@ -39,10 +39,14 @@ void Gra()
 		{
 			case '1':
 			{
+				//Wyœwietlenie dostêpnych kopalni oraz wybor jednej z nich poprzez cyfrê.
 				std::cout << "Dostepne kopalnie: " << '\n';
-				for(size_t indeks = 0; indeks < kopalnie.size(); indeks ++)
+				uint16_t numerKopalni = 0;
+				for(auto iterator = kopalnie.begin(); iterator != kopalnie.end(); iterator ++)
 				{
-					std::cout << "Kopalnia " << indeks << ". Ilosc pracownikow: " << kopalnie[indeks].size() << '\n';
+					std::cout << "Kopalnia " << numerKopalni << ". Ilosc pracownikow: ";
+					std::cout << iterator -> size() << '\n';
+					numerKopalni ++;
 				}
 				std::cout << "Wybierz ktora kopalnie chcesz odwiedzic poprzez wcisniecie cyfry: ";
 				char wyborKopalni = _getch();
@@ -50,7 +54,13 @@ void Gra()
 				if(wyborKopalni >= 48 && wyborKopalni <= kopalnie.size() + 47)
 				{
 					wyborKopalni -= 48;
-					ObslugaKopalni(kopalnie[wyborKopalni], wyborKopalni,
+					//Przesuniêcie iteratora na wybran¹ kopalnie.
+					auto iterator = kopalnie.begin();
+					for(char i = 0; i < wyborKopalni; i ++)
+					{
+						iterator ++;
+					}
+					ObslugaKopalni(* iterator, wyborKopalni,
 					czyTrwaGra, kasa, blokadaDostepuDoKasy, watki);
 				}
 				else
@@ -61,6 +71,7 @@ void Gra()
 			}
 			case '2':
 			{
+				//Kupno kopalni.
 				if(kopalnie.size() == 10)
 				{
 					std::cout << "Niemozesz juz kupic wiecej kopalni" << '\n';
@@ -109,5 +120,10 @@ void Gra()
 		}
 	}
 	std::cout << "Trwa zapisywanie..." << '\n';
+	//Zamykanie ka¿dego w¹tku.
+	for(auto iterator = watki.begin(); iterator != watki.end(); iterator ++)
+	{
+		iterator -> join();
+	}
 	Zapis(kasa, kopalnie);
 }
