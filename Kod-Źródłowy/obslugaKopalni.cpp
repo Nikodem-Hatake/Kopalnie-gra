@@ -1,6 +1,7 @@
 #include "header.hpp"
 
-void ObslugaPracownika(std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, Pracownik & pracownik)
+void ObslugaPracownika(std::atomic_uint64_t & kasa, Pracownik & pracownik, std::mutex & blokadaDostepuDoKopalni,
+std::condition_variable & powiadomienieODostepieDoKopalni, std::atomic_bool & powiadomienie)
 {
 	bool czyWyjscZObslugiPracownika = false;
 	while(!czyWyjscZObslugiPracownika)
@@ -13,8 +14,17 @@ void ObslugaPracownika(std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuD
 			case '1':
 			case '2':
 			{
+				std::cout << "Trwa ulepszanie..." << '\n';
+				std::unique_lock <std::mutex> blokada(blokadaDostepuDoKopalni);
+				if(!powiadomienie)
+				{
+					powiadomienieODostepieDoKopalni.wait(blokada);
+				}
+				powiadomienie = false;
 				wybor -= 49;
-				pracownik.Ulepszenie(wybor, kasa, blokadaDostepuDoKasy);
+				pracownik.Ulepszenie(wybor, kasa);
+				powiadomienie = true;
+				powiadomienieODostepieDoKopalni.notify_one();
 				break;
 			}
 			case '3':
@@ -22,7 +32,16 @@ void ObslugaPracownika(std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuD
 				std::string noweImie;
 				std::cout << "Wprowadz imie: ";
 				std::cin >> noweImie;
+				std::cout << "Trwa Zmienianie Imienia..." << '\n';
+				std::unique_lock <std::mutex> blokada(blokadaDostepuDoKopalni);
+				if(!powiadomienie)
+				{
+					powiadomienieODostepieDoKopalni.wait(blokada);
+				}
+				powiadomienie = false;
 				pracownik.ZmianaImienia(noweImie);
+				powiadomienie = true;
+				powiadomienieODostepieDoKopalni.notify_one();
 				break;
 			}
 			case '4':
@@ -47,8 +66,9 @@ void ObslugaPracownika(std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuD
 	}
 }
 
-void ObslugaKopalni(std::list <Pracownik> & kopalnia, char & numerKopalni, std::atomic_bool & czyTrwaGra,
-std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, std::list <std::thread> & watki)
+void ObslugaKopalni(std::list <Pracownik> & kopalnia, uint64_t & numerKopalni, std::atomic_bool & czyTrwaGra,
+std::atomic_uint64_t & kasa, std::list <std::jthread> & watki, std::mutex & blokadaDostepuDoKopalni,
+std::condition_variable & powiadomienieODostepieDoKopalni, std::atomic_bool & powiadomienie)
 {
 	bool czyWyjscZObslugiKopalni = false;
 	while(!czyWyjscZObslugiKopalni)
@@ -71,30 +91,28 @@ std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, std::list <std::
 					{
 						std::cout << "Pracownik o numerze " << indeks << '\n';
 					}
-					std::cout << "Wybierz pracownika: ";
-					char wyborPracownika = _getch();
+					std::cout << "Wybierz pracownika poprzez wpisanie numeru i nacisnij enter: ";
+					uint64_t wyborPracownika = 0;
+					std::string wyborPracownikaInput;
+					std::cin >> wyborPracownikaInput;
 					system("cls");
-					if(wyborPracownika >= 48 && wyborPracownika <= 47 + kopalnia.size())
+					if(czyPoprawnaLiczba(wyborPracownikaInput, kopalnia.size(), wyborPracownika))
 					{
-						wyborPracownika -= 48;
 						//Przesuniêcie iteratora na wybranego pracownika.
 						auto iterator = kopalnia.begin();
 						while(wyborPracownika --)
 						{
 							iterator ++;
 						}
-						ObslugaPracownika(kasa, blokadaDostepuDoKasy, * iterator);
-					}
-					else
-					{
-						std::cout << "Wybrano zlego pracownika" << '\n';
+						ObslugaPracownika(kasa, * iterator, blokadaDostepuDoKopalni,
+						powiadomienieODostepieDoKopalni, powiadomienie);
 					}
 				}
 				break;
 			}
 			case '2':
 			{
-				if(kopalnia.size() == 10)
+				if(kopalnia.size() == 1000)
 				{
 					std::cout << "Niemozesz kupic juz nastepnego pracownika (osiagnieto limit)" << '\n';
 				}
@@ -109,7 +127,13 @@ std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, std::list <std::
 					system("cls");
 					if(wyborKupna == '1' && kasa >= kosztNowegoPracownika)
 					{
-						std::unique_lock <std::mutex> blokada(blokadaDostepuDoKasy);
+						std::cout << "Trwa kupowanie..." << '\n';
+						std::unique_lock <std::mutex> blokada(blokadaDostepuDoKopalni);
+						if(!powiadomienie)
+						{
+							powiadomienieODostepieDoKopalni.wait(blokada);
+						}
+						powiadomienie = false;
 						kasa -= kosztNowegoPracownika;
 						//Dodanie nowego pracownika do kopalni oraz uruchomienie w¹tku dla niego.
 						std::string imieDlaPracownika = "Pracownik";
@@ -118,9 +142,10 @@ std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy, std::list <std::
 						static_cast <uint16_t> (1), static_cast <uint16_t> (1));
 						watki.emplace_back([&]
 						{
-							kopalnia.back().Kopanie(czyTrwaGra, kasa, (numerKopalni + 1) * 2, blokadaDostepuDoKasy);
+							kopalnia.back().Kopanie(czyTrwaGra, kasa, (numerKopalni + 1) * 2);
 						});
-						blokada.unlock();
+						powiadomienie = true;
+						powiadomienieODostepieDoKopalni.notify_one();
 						std::cout << "Zakup udany ^^" << '\n';
 
 					}

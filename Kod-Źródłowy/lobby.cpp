@@ -1,10 +1,19 @@
 #include "header.hpp"
 
-void Lobby()
+void Lobby(bool & czyWlaczonyAutoSave)
 {
 	std::cout << std::string(10, '-') << "KOPALNIE" << std::string(10, '-') << '\n';
 	std::cout << "1. Rozpocznij gre" << '\n';
-	std::cout << "2. Wyjdz" << '\n';
+	std::cout << "2. ";
+	if(czyWlaczonyAutoSave)
+	{
+		std::cout << "Wylacz auto save" << '\n';
+	}
+	else
+	{
+		std::cout << "Wlacz auto save" << '\n';
+	}
+	std::cout << "3. Wyjdz" << '\n';
 	std::cout << "Dokonaj wyboru: ";
 }
 
@@ -21,11 +30,11 @@ void LobbyGry(std::atomic_uint64_t & kasa)
 	std::cout << "Dokonaj wyboru: ";
 }
 
-void LobbyObslugiKopalni(char & numerKopalni, uint64_t && iloscPracownikow, std::atomic_uint64_t & kasa)
+void LobbyObslugiKopalni(uint64_t & numerKopalni, uint64_t && iloscPracownikow, std::atomic_uint64_t & kasa)
 {
 	std::cout << std::string(28, '-') << '\n';
-	std::cout << "Kopalnia " << static_cast <short> (numerKopalni);
-	std::cout << ". Ilosc pracownikow: " << static_cast <short> (iloscPracownikow) << '.' << '\n';
+	std::cout << "Kopalnia " << numerKopalni;
+	std::cout << ". Ilosc pracownikow: " << iloscPracownikow << '.' << '\n';
 	std::cout << "Ilosc pieniedzy: " << kasa << '\n';
 	std::cout << "1. Zarzadzaj danym pracownikiem" << '\n';
 	std::cout << "2. Kup nowego pracownika dla tej kopalni" << '\n';

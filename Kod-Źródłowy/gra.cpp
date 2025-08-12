@@ -1,14 +1,15 @@
 #include "header.hpp"
 
-void Gra()
+void Gra(bool & czyAutoSave, std::list <std::list <Pracownik>> & kopalnie, std::atomic_uint64_t & kasa)
 {
 	std::cout << "Wczytywanie..." << '\n';
 	std::atomic_bool czyTrwaGra = true;
-	std::atomic_uint64_t kasa = 0;
-	std::list <std::thread> watki;
-	std::mutex blokadaDostepuDoKasy;	//U¿ywane przy dostêpie do kasy, ¿eby by³a ona prawid³owa.
-	std::list <std::list <Pracownik>> kopalnie;
-	Odczyt(kasa, kopalnie);
+	//U¿ywane do powiadomienia w¹tków o tym, ¿e mo¿na modyfikowaæ i odczytywaæ kopalnie.
+	std::atomic_bool powiadomienie = true;
+	std::condition_variable powiadomienieODostepieDoKopalni;	//U¿ywane do oczekiwania na dostêp do kopalni.
+	std::future <bool> autoSaveWTle;	//Oddzielny w¹tek zapisuj¹cy grê co jakiœ czas w tle.
+	std::list <std::jthread> watki;	//W¹tki pracowników
+	std::mutex blokadaDostepuDoKopalni;
 	if(kopalnie.empty())	//Je¿eli w savie nic nie by³o b¹dŸ nie móg³ byæ otworzony.
 	{
 		kopalnie.emplace_back();
@@ -25,11 +26,16 @@ void Gra()
 			//U¿ycie lambdy ¿eby wywo³aæ metodê jako w¹tek.
 			watki.emplace_back([&]
 			{
-				pracownik.Kopanie(czyTrwaGra, kasa, numerKopalni * 2, blokadaDostepuDoKasy);
+				pracownik.Kopanie(czyTrwaGra, kasa, numerKopalni * 2);
 			});
 		}
 	}
 	system("cls");
+	if(czyAutoSave)
+	{
+		autoSaveWTle = std::async(std::launch::async, ZapisAutoSave, &kasa, &kopalnie, 
+		&blokadaDostepuDoKopalni, &czyTrwaGra, &powiadomienieODostepieDoKopalni, &powiadomienie);
+	}
 	while(czyTrwaGra)	//G³ówna pêtla gry.
 	{
 		LobbyGry(kasa);
@@ -48,31 +54,28 @@ void Gra()
 					std::cout << iterator -> size() << '\n';
 					numerKopalni ++;
 				}
-				std::cout << "Wybierz ktora kopalnie chcesz odwiedzic poprzez wcisniecie cyfry: ";
-				char wyborKopalni = _getch();
+				std::cout << "Wybierz kopalnie poprzez wpisanie numeru i nacisnij enter: ";
+				uint64_t wyborKopalni = 0;
+				std::string wyborKopalniInput;
+				std::cin >> wyborKopalniInput;
 				system("cls");
-				if(wyborKopalni >= 48 && wyborKopalni <= kopalnie.size() + 47)
+				if(czyPoprawnaLiczba(wyborKopalniInput, kopalnie.size(), wyborKopalni))
 				{
-					wyborKopalni -= 48;
 					//Przesuniêcie iteratora na wybran¹ kopalnie.
 					auto iterator = kopalnie.begin();
-					for(char i = 0; i < wyborKopalni; i ++)
+					for(uint64_t i = 0; i < wyborKopalni; i ++)
 					{
 						iterator ++;
 					}
-					ObslugaKopalni(* iterator, wyborKopalni,
-					czyTrwaGra, kasa, blokadaDostepuDoKasy, watki);
-				}
-				else
-				{
-					std::cout << "Wybrano zla kopalnie" << '\n';
+					ObslugaKopalni(* iterator, wyborKopalni, czyTrwaGra, kasa, watki,
+					blokadaDostepuDoKopalni, powiadomienieODostepieDoKopalni, powiadomienie);
 				}
 				break;
 			}
 			case '2':
 			{
 				//Kupno kopalni.
-				if(kopalnie.size() == 10)
+				if(kopalnie.size() == 1000)
 				{
 					std::cout << "Niemozesz juz kupic wiecej kopalni" << '\n';
 				}
@@ -86,10 +89,17 @@ void Gra()
 					system("cls");
 					if(wyborKupna == '1' && kasa >= kosztKopalni)
 					{
-						std::unique_lock <std::mutex> blokada(blokadaDostepuDoKasy);
+						std::cout << "Trwa kupowanie..." << '\n';
+						std::unique_lock <std::mutex> blokada(blokadaDostepuDoKopalni);
+						if(!powiadomienie)
+						{
+							powiadomienieODostepieDoKopalni.wait(blokada);
+						}
+						powiadomienie = false;
 						kasa -= kosztKopalni;
-						blokada.unlock();
 						kopalnie.emplace_back();
+						powiadomienie = true;
+						powiadomienieODostepieDoKopalni.notify_one();
 						std::cout << "Zakup udany ^^" << '\n';
 					}
 					else if(wyborKupna == '1' && kasa < kosztKopalni)
@@ -101,7 +111,7 @@ void Gra()
 			}
 			case '3':
 			{
-				KopanieSamemu(kasa, blokadaDostepuDoKasy);
+				KopanieSamemu(kasa);
 				system("cls");
 				break;
 			}
@@ -119,11 +129,22 @@ void Gra()
 			}
 		}
 	}
-	std::cout << "Trwa zapisywanie..." << '\n';
-	//Zamykanie ka¿dego w¹tku.
-	for(auto iterator = watki.begin(); iterator != watki.end(); iterator ++)
+	std::cout << "Trwa zapisywanie oraz zamykanie gry..." << '\n';
+	if(czyAutoSave)	//Zamkniêcie autoSavea.
 	{
-		iterator -> join();
+		//Je¿eli autoSave dzia³a³, wyœwietlenie komunikatu.
+		if(bool czyZapisano = autoSaveWTle.get(); czyZapisano)
+		{
+			std::cout << "Zapisano ^^" << '\n';
+		}
+		else
+		{
+			std::cout << "Nieudalo sie zapisac gry, sprawdz czy plik save.txt";
+			std::cout << "jest w tej samej sciezce co gra." << '\n';
+		}
 	}
-	Zapis(kasa, kopalnie);
+	else	//Je¿eli autosave jest wy³¹czony, zapisz poprzez u¿ycie tej funkjci.
+	{
+		Zapis(kasa, kopalnie);
+	}
 }

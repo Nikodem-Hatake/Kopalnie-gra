@@ -33,19 +33,17 @@ void Pracownik::InformacjeOPracowniku()
 }
 
 void Pracownik::Kopanie(std::atomic_bool & czyTrwaGra, std::atomic_uint64_t & kasa,
-uint64_t && ileKasyZaZloze, std::mutex & blokadaDostepuDoKasy)
+uint64_t && ileKasyZaZloze)
 {
 	while(czyTrwaGra)
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(this -> predkoscKopaniaWMilisekundach));
 		//Zarobienie kasy poprzez zablokowanie dostêpu do kasy dla innych w¹tków na czas dzia³ania jednego (mutex).
-		std::unique_lock <std::mutex> blokada(blokadaDostepuDoKasy);
 		kasa += (ileKasyZaZloze * this -> iloscWydobywanychZloz);
-		blokada.unlock();
 	}
 }
 
-void Pracownik::Ulepszenie(char & jakieUlepszenie, std::atomic_uint64_t & kasa, std::mutex & blokadaDostepuDoKasy)
+void Pracownik::Ulepszenie(char & jakieUlepszenie, std::atomic_uint64_t & kasa)
 {
 	if(this -> ulepszenia[jakieUlepszenie].first == 5)
 	{
@@ -57,9 +55,7 @@ void Pracownik::Ulepszenie(char & jakieUlepszenie, std::atomic_uint64_t & kasa, 
 		std::cout << "Niestac cie na to ulepszenie" << '\n';
 		return;	//Za drogie ulepszenie.
 	}
-	std::unique_lock <std::mutex> blokada(blokadaDostepuDoKasy);
 	kasa -= ulepszenia[jakieUlepszenie].second.first;
-	blokada.unlock();
 	this -> ulepszenia[jakieUlepszenie].first ++;
 	this -> ulepszenia[jakieUlepszenie].second.first += this -> ulepszenia[jakieUlepszenie].second.second;
 	if(jakieUlepszenie == 0)
@@ -75,7 +71,7 @@ void Pracownik::Ulepszenie(char & jakieUlepszenie, std::atomic_uint64_t & kasa, 
 
 void Pracownik::ZmianaImienia(std::string & noweImie)
 {
-	if(noweImie.length() == 0)
+	if(noweImie.empty())
 	{
 		std::cout << "Niewprowadzono imienia, zmiana nieudana" << '\n';
 		return;
@@ -86,6 +82,7 @@ void Pracownik::ZmianaImienia(std::string & noweImie)
 		return;
 	}
 	this -> imie = noweImie;
+	std::cout << "Zmiana udana ^^" << '\n';
 }
 
 Pracownik::Pracownik(uint64_t kosztyUlepszen, std::string imieDlaPracownika,
