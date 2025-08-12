@@ -2,8 +2,7 @@
 
 bool Odczyt(std::atomic_uint64_t * kasa, std::list <std::list <Pracownik>> * kopalnie)
 {
-	std::fstream plik;
-	plik.open("save.txt", std::ios::in | std::ios::binary);
+	std::ifstream plik("save.txt", std::ios::in | std::ios::binary);
 	if(!plik.good())
 	{
 		return false;
@@ -37,14 +36,12 @@ bool Odczyt(std::atomic_uint64_t * kasa, std::list <std::list <Pracownik>> * kop
 			poziomIlosciWydobywanychZloz, poziomPredkosciKopaniaWMilisekundach);
 		}
 	}
-	plik.close();
 	return true;
 }
 
 void Zapis(std::atomic_uint64_t & kasa, std::list <std::list <Pracownik>> & kopalnie)
 {
-	std::fstream plik;
-	plik.open("save.txt", std::ios::out);
+	std::ofstream plik("save.txt", std::ios::out);
 	if(!plik.good())
 	{
 		std::cout << "Nieudalo sie zapisac gry, sprawdz czy plik save.txt jest w tej samej sciezce co gra" << '\n';
@@ -65,7 +62,6 @@ void Zapis(std::atomic_uint64_t & kasa, std::list <std::list <Pracownik>> & kopa
 			plik << iterator -> ulepszenia[0].second.second << ' ' << iterator -> imie << '\n';
 		}
 	}
-	plik.close();
 	std::cout << "Zapisano ^^" << '\n';
 }
 
@@ -73,14 +69,6 @@ bool ZapisAutoSave(std::atomic_uint64_t * kasa, std::list <std::list <Pracownik>
 std::mutex * blokadaDostepuDoKopalni, std::atomic_bool * czyTrwaGra,
 std::condition_variable * powiadomienieODostepieDoKopalni, std::atomic_bool * powiadomienie)
 {
-	std::fstream plik;
-	plik.open("save.txt", std::ios::out);
-	if(!plik.good())
-	{
-		std::cout << "Funkcja auto save niedziala ze wzgledu na brak dostepu do pliku save.txt" << '\n';
-		return false;
-	}
-	plik.close();
 	while(* czyTrwaGra)
 	{
 		//Petla trwaj¹ca minute i sprawdzaj¹ca co sekundê, czy nadal mo¿e wykonaæ autoSave
@@ -92,7 +80,7 @@ std::condition_variable * powiadomienieODostepieDoKopalni, std::atomic_bool * po
 				std::this_thread::sleep_for(std::chrono::seconds(1));
 			}
 		}
-		plik.open("save.txt", std::ios::out);
+		std::ofstream plik("save.txt", std::ios::out);
 		if(plik.good())
 		{
 			std::unique_lock <std::mutex> blokada(* blokadaDostepuDoKopalni);
@@ -116,7 +104,6 @@ std::condition_variable * powiadomienieODostepieDoKopalni, std::atomic_bool * po
 			}
 			* powiadomienie = true;
 			powiadomienieODostepieDoKopalni -> notify_one();	//Powiadomienie innego w¹tku o dostêpie do kopalni.
-			plik.close();
 		}
 		else
 		{
