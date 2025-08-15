@@ -8,12 +8,12 @@ void Gra(bool & czyAutoSave, std::list <std::list <Pracownik>> & kopalnie, std::
 	std::atomic_bool powiadomienie = true;
 	std::condition_variable powiadomienieODostepieDoKopalni;	//U¿ywane do oczekiwania na dostêp do kopalni.
 	std::future <bool> autoSaveWTle;	//Oddzielny w¹tek zapisuj¹cy grê co jakiœ czas w tle.
-	std::list <std::jthread> watki;	//W¹tki pracowników
+	std::forward_list <std::jthread> watki;	//W¹tki pracowników
 	std::mutex blokadaDostepuDoKopalni;
 	if(kopalnie.empty())	//Je¿eli w savie nic nie by³o b¹dŸ nie móg³ byæ otworzony.
 	{
 		kopalnie.emplace_back();
-		kopalnie.back().emplace_back(static_cast <uint64_t> (10), "Pracownik0",
+		kopalnie.back().emplace_back(static_cast <uint64_t> (10), std::move("Pracownik0"),
 		static_cast <uint16_t> (1), static_cast <uint16_t> (1));
 	}
 	uint64_t numerKopalni = 0;
@@ -24,7 +24,7 @@ void Gra(bool & czyAutoSave, std::list <std::list <Pracownik>> & kopalnie, std::
 		for(Pracownik & pracownik : kopalnia)
 		{
 			//U¿ycie lambdy ¿eby wywo³aæ metodê jako w¹tek.
-			watki.emplace_back([&]
+			watki.emplace_front([&]
 			{
 				pracownik.Kopanie(czyTrwaGra, kasa, numerKopalni * 2);
 			});
@@ -36,6 +36,7 @@ void Gra(bool & czyAutoSave, std::list <std::list <Pracownik>> & kopalnie, std::
 		autoSaveWTle = std::async(std::launch::async, ZapisAutoSave, &kasa, &kopalnie, 
 		&blokadaDostepuDoKopalni, &czyTrwaGra, &powiadomienieODostepieDoKopalni, &powiadomienie);
 	}
+
 	while(czyTrwaGra)	//G³ówna pêtla gry.
 	{
 		LobbyGry(kasa);
@@ -62,12 +63,26 @@ void Gra(bool & czyAutoSave, std::list <std::list <Pracownik>> & kopalnie, std::
 				if(czyPoprawnaLiczba(wyborKopalniInput, kopalnie.size(), wyborKopalni))
 				{
 					//Przesuniêcie iteratora na wybran¹ kopalnie.
-					auto iterator = kopalnie.begin();
-					for(uint64_t i = 0; i < wyborKopalni; i ++)
+					std::list <std::list <Pracownik>>::iterator iterator;
+					uint64_t kopiaWyboruKopalni = wyborKopalni;
+					if(wyborKopalni > kopalnie.size() / 2)	//Je¿eli iterator ma byæ dalej ni¿ po³owa listy.
 					{
-						iterator ++;
+						iterator = kopalnie.end();
+						wyborKopalni = kopalnie.size() - wyborKopalni;
+						while(wyborKopalni --)
+						{
+							iterator --;
+						}
 					}
-					ObslugaKopalni(* iterator, wyborKopalni, czyTrwaGra, kasa, watki,
+					else	//Je¿eli iterator ma byæ przed po³ow¹ listy.
+					{
+						iterator = kopalnie.begin();
+						while(wyborKopalni --)
+						{
+							iterator ++;
+						}
+					}
+					ObslugaKopalni(* iterator, kopiaWyboruKopalni, czyTrwaGra, kasa, watki,
 					blokadaDostepuDoKopalni, powiadomienieODostepieDoKopalni, powiadomienie);
 				}
 				break;
@@ -81,6 +96,7 @@ void Gra(bool & czyAutoSave, std::list <std::list <Pracownik>> & kopalnie, std::
 				}
 				else
 				{
+					powiadomienie = false;
 					uint64_t kosztKopalni = (kopalnie.size() + 1) * 25000;
 					std::cout << "Koszt nowej kopalni: " << kosztKopalni << '\n';
 					std::cout << "Czy chcesz kupic nowa kopalnie?" << '\n';
@@ -91,21 +107,16 @@ void Gra(bool & czyAutoSave, std::list <std::list <Pracownik>> & kopalnie, std::
 					{
 						std::cout << "Trwa kupowanie..." << '\n';
 						std::unique_lock <std::mutex> blokada(blokadaDostepuDoKopalni);
-						if(!powiadomienie)
-						{
-							powiadomienieODostepieDoKopalni.wait(blokada);
-						}
-						powiadomienie = false;
 						kasa -= kosztKopalni;
 						kopalnie.emplace_back();
-						powiadomienie = true;
-						powiadomienieODostepieDoKopalni.notify_one();
 						std::cout << "Zakup udany ^^" << '\n';
 					}
 					else if(wyborKupna == '1' && kasa < kosztKopalni)
 					{
 						std::cout << "Niestac cie na nowa kopalnie" << '\n';
 					}
+					powiadomienie = true;
+					powiadomienieODostepieDoKopalni.notify_one();
 				}
 				break;
 			}
@@ -129,6 +140,7 @@ void Gra(bool & czyAutoSave, std::list <std::list <Pracownik>> & kopalnie, std::
 			}
 		}
 	}
+
 	std::cout << "Trwa zapisywanie oraz zamykanie gry..." << '\n';
 	if(czyAutoSave)	//Zamkniêcie autoSavea.
 	{
