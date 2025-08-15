@@ -10,6 +10,7 @@ int main()
 	std::list <std::list <Pracownik>> kopalnie;
 	//Wczytywanie danych do gry w tle.
 	std::future <bool> wczytywanieGry = std::async(std::launch::async, Odczyt, &kasa, &kopalnie);
+
 	while(!czyKoniecGry)
 	{
 		Lobby(czyAutoSave);
