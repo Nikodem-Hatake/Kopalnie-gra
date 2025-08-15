@@ -21,6 +21,7 @@ void KopanieSamemu(std::atomic_uint64_t & kasa)
 	std::cout << "Kop poprzez trzymanie ciagle dowolnego przycisku poza \'x\'" << '\n';
 	std::cout << "Co ktores wykopanie masz szanse na wydobycie rudy" << '\n';
 	std::cout << "Nacisniecie klawisza \'x\' spowoduje wyjscie z kopania samemu" << '\n';
+
 	while(znaczek != 'x' && znaczek != 'X')
 	{
 		znaczek = _getch();
