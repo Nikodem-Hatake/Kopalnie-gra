@@ -85,8 +85,23 @@ void Pracownik::ZmianaImienia(std::string & noweImie)
 	std::cout << "Zmiana udana ^^" << '\n';
 }
 
-Pracownik::Pracownik(uint64_t kosztyUlepszen, std::string imieDlaPracownika,
-uint16_t poziomIlosciWydobywanychZloz, uint16_t poziomPredkosciKopaniaWMilisekundach)
+Pracownik::Pracownik(uint64_t & kosztyUlepszen, std::string & imieDlaPracownika,
+uint16_t & poziomIlosciWydobywanychZloz, uint16_t & poziomPredkosciKopaniaWMilisekundach)
+{
+	this -> iloscWydobywanychZloz = poziomIlosciWydobywanychZloz;
+	this -> predkoscKopaniaWMilisekundach = 3000 - (500 * poziomPredkosciKopaniaWMilisekundach);
+	this -> ulepszenia[0].first = poziomIlosciWydobywanychZloz;
+	this -> ulepszenia[0].second.first = kosztyUlepszen * static_cast <uint64_t> (poziomIlosciWydobywanychZloz);
+	this -> ulepszenia[0].second.second = kosztyUlepszen;
+	this -> ulepszenia[1].first = poziomPredkosciKopaniaWMilisekundach;
+	this -> ulepszenia[1].second.first = (kosztyUlepszen / 2)
+	* static_cast <uint64_t> (poziomPredkosciKopaniaWMilisekundach);
+	this -> ulepszenia[1].second.second = kosztyUlepszen / 2;
+	this -> imie = imieDlaPracownika;
+}
+
+Pracownik::Pracownik(uint64_t && kosztyUlepszen, std::string imieDlaPracownika,
+uint16_t && poziomIlosciWydobywanychZloz, uint16_t && poziomPredkosciKopaniaWMilisekundach)
 {
 	this -> iloscWydobywanychZloz = poziomIlosciWydobywanychZloz;
 	this -> predkoscKopaniaWMilisekundach = 3000 - (500 * poziomPredkosciKopaniaWMilisekundach);
@@ -98,9 +113,4 @@ uint16_t poziomIlosciWydobywanychZloz, uint16_t poziomPredkosciKopaniaWMilisekun
 	* static_cast <uint64_t> (poziomPredkosciKopaniaWMilisekundach);
 	this -> ulepszenia[1].second.second = kosztyUlepszen / 2;
 	this -> imie = imieDlaPracownika;
-}
-
-Pracownik::~Pracownik()
-{
-
 }
