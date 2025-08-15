@@ -16,6 +16,7 @@ bool Odczyt(std::atomic_uint64_t * kasa, std::list <std::list <Pracownik>> * kop
 		ileFabryk = 100;
 	}
 	* kasa = tempKasa;
+
 	while(ileFabryk --)
 	{
 		kopalnie -> emplace_back();
@@ -81,6 +82,7 @@ std::condition_variable * powiadomienieODostepieDoKopalni, std::atomic_bool * po
 			}
 		}
 		std::ofstream plik("save.txt", std::ios::out);
+
 		if(plik.good())
 		{
 			std::unique_lock <std::mutex> blokada(* blokadaDostepuDoKopalni);
@@ -88,7 +90,6 @@ std::condition_variable * powiadomienieODostepieDoKopalni, std::atomic_bool * po
 			{
 				powiadomienieODostepieDoKopalni -> wait(blokada);
 			}
-			* powiadomienie = false;
 			plik << * kasa << ' ' << kopalnie -> size() << '\n';	//Iloœæ pieniêdzy oraz kopalni.
 			for(const std::list <Pracownik> & kopalnia : * kopalnie)
 			{
@@ -102,8 +103,6 @@ std::condition_variable * powiadomienieODostepieDoKopalni, std::atomic_bool * po
 					plik << iterator -> ulepszenia[0].second.second << ' ' << iterator -> imie << '\n';
 				}
 			}
-			* powiadomienie = true;
-			powiadomienieODostepieDoKopalni -> notify_one();	//Powiadomienie innego w¹tku o dostêpie do kopalni.
 		}
 		else
 		{
