@@ -1,6 +1,6 @@
 #include "header.hpp"
 
-bool Odczyt(std::atomic_uint64_t * kasa, std::list <std::list <Pracownik>> * kopalnie)
+bool Odczyt()
 {
 	std::ifstream plik("save.txt", std::ios::in | std::ios::binary);
 	if(!plik.good())
@@ -11,72 +11,71 @@ bool Odczyt(std::atomic_uint64_t * kasa, std::list <std::list <Pracownik>> * kop
 	uint16_t ilePracownikow = 0;
 	uint64_t tempKasa = 0;
 	plik >> tempKasa >> ileFabryk;
-	if(ileFabryk > 100)
-	{
-		ileFabryk = 100;
-	}
-	* kasa = tempKasa;
+	Gracz::kasa = tempKasa;
+	Gracz::kopalnie.reserve(ileFabryk);
 
-	while(ileFabryk --)
+	for(uint16_t i = 1; i <= ileFabryk; i ++)
 	{
-		kopalnie -> emplace_back();
+		Gracz::kopalnie.emplace_back(i);
 		plik >> ilePracownikow;
-		if(ilePracownikow > 100)
-		{
-			ilePracownikow = 100;
-		}
 		uint16_t poziomIlosciWydobywanychZloz;
 		uint16_t poziomPredkosciKopaniaWMilisekundach;
 		uint64_t kosztyUlepszen; 
+		uint64_t ileZarobil;
 		std::string imieDlaPracownika;
 		while(ilePracownikow --)	//Dodanie kopalni z ka¿dym pracownikiem jaki w niej jest.
 		{
 			plik >> poziomIlosciWydobywanychZloz >> poziomPredkosciKopaniaWMilisekundach;
-			plik >> kosztyUlepszen >> imieDlaPracownika;
-			kopalnie -> back().emplace_back(kosztyUlepszen, imieDlaPracownika,
-			poziomIlosciWydobywanychZloz, poziomPredkosciKopaniaWMilisekundach);
+			plik >> kosztyUlepszen >> imieDlaPracownika >> ileZarobil;
+			Gracz::kopalnie.back().pracownicy.emplace_back(kosztyUlepszen, imieDlaPracownika,
+			poziomIlosciWydobywanychZloz, poziomPredkosciKopaniaWMilisekundach, ileZarobil);
 		}
 	}
 	return true;
 }
 
-void Zapis(std::atomic_uint64_t & kasa, std::list <std::list <Pracownik>> & kopalnie)
+void Zapis()
 {
 	std::ofstream plik("save.txt", std::ios::out);
 	if(!plik.good())
 	{
-		std::cout << "Nieudalo sie zapisac gry, sprawdz czy plik save.txt jest w tej samej sciezce co gra" << '\n';
-		std::cout << "nacisnij dowolny przycisk aby kontynuowac ";
-		_getch();
+		if(GraficznyInterfejsUzytkownika::okno.isOpen())
+		{
+			GraficznyInterfejsUzytkownika::UstawWlasciwosciDlaDodatkowegoTekstu
+			("Nieudalo sie zapisac", {40.f, 24.f}, sf::Color(240, 0, 0));
+		}
 		return;
 	}
-	plik << kasa << ' ' << kopalnie.size() << '\n';	//Iloœæ pieniêdzy oraz kopalni.
-	for(const std::list <Pracownik> & kopalnia : kopalnie)
+	plik << Gracz::kasa << ' ' << Gracz::kopalnie.size() << '\n';	//Iloœæ pieniêdzy oraz kopalni.
+	for(const Kopalnia & kopalnia : Gracz::kopalnie)
 	{
-		plik << kopalnia.size() << '\n';	//Iloœæ pracowników w pojedyñczej kopalni.
-		for(auto iterator = kopalnia.begin(); iterator != kopalnia.end(); iterator ++)
+		plik << kopalnia.pracownicy.size() << '\n';	//Iloœæ pracowników w pojedyñczej kopalni.
+		for(auto iterator = kopalnia.pracownicy.begin(); iterator != kopalnia.pracownicy.end(); iterator ++)
 		{
 			//Poziom ilosci wydobywanych z³ó¿ oraz poziom prêdkoœci kopania w milisekundach.
-			plik << static_cast <short> (iterator -> ulepszenia[0].first) << ' ';
-			plik << static_cast <short> (iterator -> ulepszenia[1].first) << ' ';
+			plik << iterator -> ulepszenia[0].first << ' ';
+			plik << iterator -> ulepszenia[1].first << ' ';
 			//Koszty ulepszeñ oraz imie danego pracownika.
-			plik << iterator -> ulepszenia[0].second.second << ' ' << iterator -> imie << '\n';
+			plik << iterator -> ulepszenia[0].second.second << ' ' << iterator -> imie << ' ';
+			plik << iterator -> ileZarobil << '\n';
 		}
 	}
-	std::cout << "Zapisano ^^" << '\n';
+	if(GraficznyInterfejsUzytkownika::okno.isOpen())
+	{
+		GraficznyInterfejsUzytkownika::UstawWlasciwosciDlaDodatkowegoTekstu
+		("Zapisano ^^", {120.f, 24.f}, sf::Color(0, 240, 0));
+	}
 }
 
-bool ZapisAutoSave(std::atomic_uint64_t * kasa, std::list <std::list <Pracownik>> * kopalnie, 
-std::mutex * blokadaDostepuDoKopalni, std::atomic_bool * czyTrwaGra,
-std::condition_variable * powiadomienieODostepieDoKopalni, std::atomic_bool * powiadomienie)
+bool ZapisAutoSave()
 {
-	while(* czyTrwaGra)
+	while(Gracz::czyTrwaGra)
 	{
 		//Petla trwaj¹ca minute i sprawdzaj¹ca co sekundê, czy nadal mo¿e wykonaæ autoSave
 		//(sprawdzanie co sekunde, ¿eby niezatrzymywaæ gry na d³ugo w procesie wychodzenia z niej).
-		for(uint16_t ileRazyPrzeczekac = 0; * czyTrwaGra && ileRazyPrzeczekac < 60; ileRazyPrzeczekac ++)
+		for(uint16_t ileRazyPrzeczekac = 0; Gracz::czyTrwaGra && ileRazyPrzeczekac < 60; ileRazyPrzeczekac ++)
 		{
-			if(* czyTrwaGra)
+			if(Gracz::czyTrwaGra)
 			{
 				std::this_thread::sleep_for(std::chrono::seconds(1));
 			}
@@ -85,22 +84,27 @@ std::condition_variable * powiadomienieODostepieDoKopalni, std::atomic_bool * po
 
 		if(plik.good())
 		{
-			std::unique_lock <std::mutex> blokada(* blokadaDostepuDoKopalni);
-			if(!(* powiadomienie))	//Czekanie na dostêp do kopalni.
+			plik << Gracz::kasa << ' ' << Gracz::kopalnie.size() << '\n';	//Iloœæ pieniêdzy oraz kopalni.
+			for(Kopalnia & kopalnia : Gracz::kopalnie)
 			{
-				powiadomienieODostepieDoKopalni -> wait(blokada);
-			}
-			plik << * kasa << ' ' << kopalnie -> size() << '\n';	//Iloœæ pieniêdzy oraz kopalni.
-			for(const std::list <Pracownik> & kopalnia : * kopalnie)
-			{
-				plik << kopalnia.size() << '\n';	//Iloœæ pracowników w pojedyñczej kopalni.
-				for(auto iterator = kopalnia.begin(); iterator != kopalnia.end(); iterator ++)
+				std::unique_lock <std::mutex> blokada(Kopalnia::blokadaDostepuDoKopalni);
+				if(!Kopalnia::powiadomienie)	//Czekanie na dostêp do kopalni.
 				{
+					Kopalnia::powiadomienieODostepieDoKopalni.wait(blokada);
+				}
+				plik << kopalnia.pracownicy.size() << '\n';	//Iloœæ pracowników w pojedyñczej kopalni.
+				for(auto iterator = kopalnia.pracownicy.begin(); iterator != kopalnia.pracownicy.end(); iterator ++)
+				{
+					if(!Kopalnia::powiadomienie)	//Czekanie na dostêp do kopalni.
+					{
+						Kopalnia::powiadomienieODostepieDoKopalni.wait(blokada);
+					}
 					//Poziom ilosci wydobywanych z³ó¿ oraz poziom prêdkoœci kopania w milisekundach.
-					plik << static_cast <short> (iterator -> ulepszenia[0].first) << ' ';
-					plik << static_cast <short> (iterator -> ulepszenia[1].first) << ' ';
+					plik << iterator -> ulepszenia[0].first << ' ';
+					plik << iterator -> ulepszenia[1].first << ' ';
 					//Koszty ulepszeñ oraz imie danego pracownika.
-					plik << iterator -> ulepszenia[0].second.second << ' ' << iterator -> imie << '\n';
+					plik << iterator -> ulepszenia[0].second.second << ' ' << iterator -> imie << ' ';
+					plik << iterator -> ileZarobil << '\n';
 				}
 			}
 		}

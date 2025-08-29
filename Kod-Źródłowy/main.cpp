@@ -1,61 +1,75 @@
 #include "header.hpp"
 
+void UruchomFunkcjeDlaKliknietegoPrzyciskuMain(uint8_t && wJakiPrzyciskKliknieto);
+
 int main()
 {
-	bool czyAutoSave = true;
-	bool czyKoniecGry = false;
-	bool czyWczytanoZPliku = false;
-	char wybor = 0;
-	std::atomic_uint64_t kasa = 0;
-	std::list <std::list <Pracownik>> kopalnie;
-	//Wczytywanie danych do gry w tle.
-	std::future <bool> wczytywanieGry = std::async(std::launch::async, Odczyt, &kasa, &kopalnie);
-
-	while(!czyKoniecGry)
-	{
-		Lobby(czyAutoSave);
-		wybor = _getch();
-		system("cls");
-		switch(wybor)
+	GraficznyInterfejsUzytkownika::UtworzPrzyciski(3);
+	{	//Dodatkowe zagnie¿d¿enie, ¿eby array stringów zosta³ póŸniej usuniêty z pamiêci.
+		std::array <std::string, 3> tekstyDlaObiektowTekstu
 		{
-			case '1':
+			"Rozpocznij gre",
+			"Wylacz auto save",
+			"Wyjdz"
+		};
+		GraficznyInterfejsUzytkownika::UtworzObiektyTekstow(3, tekstyDlaObiektowTekstu.data());
+	}
+	GraficznyInterfejsUzytkownika::UtworzDodatkoweElementy();
+	GraficznyInterfejsUzytkownika::UstawWlasciwosciDlaDodatkowegoTekstu("KOPALNIE", {120.f, 24.f}, sf::Color(0, 0, 0));
+	//Wy³¹czenie renderowania w g³ównym w¹tku (zamiast tego odbywa siê w w¹tku poni¿ej)
+	GraficznyInterfejsUzytkownika::okno.setActive(false);
+	std::jthread renderowanieGrafikiWTle(GraficznyInterfejsUzytkownika::RenderowanieGrafiki);
+
+	while(GraficznyInterfejsUzytkownika::okno.isOpen())	//G³ówna pêtla gry.
+	{
+		UruchomFunkcjeDlaKliknietegoPrzyciskuMain(GraficznyInterfejsUzytkownika::ObslugaZdarzenOkna());
+	}
+}
+
+void UruchomFunkcjeDlaKliknietegoPrzyciskuMain(uint8_t && wJakiPrzyciskKliknieto)
+{
+	switch(wJakiPrzyciskKliknieto)
+	{
+		case 1:
+		{
+			Gracz::SprawdzCzyWczytanoDane();
+			Gra();
+			//Renderowanie z powrotem poprzednich elementów.
+			GraficznyInterfejsUzytkownika::UtworzPrzyciski(3);
 			{
-				std::cout << "Wczytywanie..." << '\n';
-				if(!czyWczytanoZPliku)
+				std::array <std::string, 3> tekstyDlaObiektowTekstu
 				{
-					if(bool czyUdaloSieWczytacZPliku = wczytywanieGry.get(); !czyUdaloSieWczytacZPliku)
-					{
-						std::cout << "Nieudalo sie wczytac danych z pliku,";
-						std::cout << "nacisnij dowolny przycisk aby kontynuowac" << '\n';
-						_getch();
-					}
-					czyWczytanoZPliku = true;	//Ustawienie na true, ¿eby nieodczytywaæ danych z pliku drugi raz.
-				}
-				Gra(czyAutoSave, kopalnie, kasa);
-				break;
-			}
-			case '2':
-			{
-				if(czyAutoSave)
+					"Rozpocznij gre",
+					"Wylacz auto save",
+					"Wyjdz"
+				};
+				if(!Gracz::czyAktywnyAutoSave)
 				{
-					czyAutoSave = false;
+					tekstyDlaObiektowTekstu[1] = "Wlacz auto save";
 				}
-				else
-				{
-					czyAutoSave = true;
-				}
-				break;
+				GraficznyInterfejsUzytkownika::UtworzObiektyTekstow(3, tekstyDlaObiektowTekstu.data());
 			}
-			case '3':
+			break;
+		}
+		case 2:
+		{
+			if(Gracz::czyAktywnyAutoSave)
 			{
-				czyKoniecGry = true;
-				break;
+				Gracz::czyAktywnyAutoSave = false;
+				GraficznyInterfejsUzytkownika::UstawTekstObiektuTekstu(2, "Wlacz auto save");
 			}
-			default:
+			else
 			{
-				std::cout << "Dokonano zlego wyboru" << '\n';
-				break;
+				Gracz::czyAktywnyAutoSave = true;
+				GraficznyInterfejsUzytkownika::UstawTekstObiektuTekstu(2, "Wylacz auto save");
 			}
+			break;
+		}
+		case 0:
+		case 3:
+		{
+			GraficznyInterfejsUzytkownika::okno.close();
+			break;
 		}
 	}
 }

@@ -1,162 +1,129 @@
 #include "header.hpp"
 
-void Gra(bool & czyAutoSave, std::list <std::list <Pracownik>> & kopalnie, std::atomic_uint64_t & kasa)
+void UtworzElementyGraficzneGry();
+void ZamykanieGry();
+void UruchomFunkcjeDlaKliknietegoPrzyciskuGra(uint8_t && wJakiPrzyciskKliknieto);
+
+void Gra()
 {
-	std::cout << "Wczytywanie..." << '\n';
-	std::atomic_bool czyTrwaGra = true;
-	//U¿ywane do powiadomienia w¹tków o tym, ¿e mo¿na modyfikowaæ i odczytywaæ kopalnie.
-	std::atomic_bool powiadomienie = true;
-	std::condition_variable powiadomienieODostepieDoKopalni;	//U¿ywane do oczekiwania na dostêp do kopalni.
-	std::future <bool> autoSaveWTle;	//Oddzielny w¹tek zapisuj¹cy grê co jakiœ czas w tle.
-	std::forward_list <std::jthread> watki;	//W¹tki pracowników
-	std::mutex blokadaDostepuDoKopalni;
-	if(kopalnie.empty())	//Je¿eli w savie nic nie by³o b¹dŸ nie móg³ byæ otworzony.
-	{
-		kopalnie.emplace_back();
-		kopalnie.back().emplace_back(static_cast <uint64_t> (10), std::move("Pracownik0"),
-		static_cast <uint16_t> (1), static_cast <uint16_t> (1));
-	}
-	uint64_t numerKopalni = 0;
+	Gracz::czyTrwaGra = true;
+	Gracz::DodajKopalnieWPrzypadkuBrakuSavea();
+	Gracz::DodajWatkiNaPoczatkuGry();
 	//Uruchamianie funkcji kopania dla ka¿dego pracownika z ka¿dej kopalni jako oddzielny w¹tek.
-	for(std::list <Pracownik> & kopalnia : kopalnie)
+	if(Gracz::czyAktywnyAutoSave)
 	{
-		numerKopalni ++;
-		for(Pracownik & pracownik : kopalnia)
+		Gracz::AktywujAutoSave();
+	}
+	UtworzElementyGraficzneGry();
+	{
+		std::jthread wyswietlanieKasyWTle(GraficznyInterfejsUzytkownika::AktualizujInformacjeOIlosciPieniedzy);
+		while(GraficznyInterfejsUzytkownika::okno.isOpen() && Gracz::czyTrwaGra)	//G³ówna pêtla gry.
 		{
-			//U¿ycie lambdy ¿eby wywo³aæ metodê jako w¹tek.
-			watki.emplace_front([&]
-			{
-				pracownik.Kopanie(czyTrwaGra, kasa, numerKopalni * 2);
-			});
+			UruchomFunkcjeDlaKliknietegoPrzyciskuGra(GraficznyInterfejsUzytkownika::ObslugaZdarzenOkna());
 		}
 	}
-	system("cls");
-	if(czyAutoSave)
-	{
-		autoSaveWTle = std::async(std::launch::async, ZapisAutoSave, &kasa, &kopalnie, 
-		&blokadaDostepuDoKopalni, &czyTrwaGra, &powiadomienieODostepieDoKopalni, &powiadomienie);
-	}
+	ZamykanieGry();
+}
 
-	while(czyTrwaGra)	//G³ówna pêtla gry.
+void UtworzElementyGraficzneGry()
+{
+	GraficznyInterfejsUzytkownika::UstawWlasciwosciDlaDodatkowegoTekstu
+	("Ilosc kasy: " + Gracz::ZwrocIloscKasyJakoString(), {40.f, 24.f}, sf::Color(0, 240, 0));
+	GraficznyInterfejsUzytkownika::UtworzPrzyciski(4);
 	{
-		LobbyGry(kasa);
-		char wybor = _getch();
-		system("cls");
-		switch(wybor)
+		std::array <std::string, 4> tekstyDlaObiektowTekstu
 		{
-			case '1':
+			"Wejdz do kopalni",
+			"Kup nowa kopalnie\nKoszt: " + std::to_string(Gracz::ZwrocKosztKupnaNowejKopalni()),
+			"Kop samemu",
+			"Wyjdz"
+		};
+		GraficznyInterfejsUzytkownika::UtworzObiektyTekstow(4, tekstyDlaObiektowTekstu.data());
+	}
+	GraficznyInterfejsUzytkownika::ZmienWysokoscPrzycisku(2, 80.f);
+}
+
+void UruchomFunkcjeDlaKliknietegoPrzyciskuGra(uint8_t && wJakiPrzyciskKliknieto)
+{
+	switch(wJakiPrzyciskKliknieto)
+	{
+		case 1:
+		{
+			std::string jakaKopalnia = "";
+			GraficznyInterfejsUzytkownika::UstawTekstObiektuTekstu(1, "Wprowadz tutaj\nnumer kopalni\nod 1 do "
+			+ std::to_string(Gracz::ZwrocOstatniNumerKopalni()) + "\ni nacisnin enter:");
+			GraficznyInterfejsUzytkownika::ZmienWysokoscPrzycisku(1, 160.f);
+			GraficznyInterfejsUzytkownika::ZmienWysokoscPrzycisku(2, 80.f);
+			uint8_t jakieZdarzenie = GraficznyInterfejsUzytkownika::ObslugaZdarzenOkna();
+			while(jakieZdarzenie > 13 && GraficznyInterfejsUzytkownika::okno.isOpen())
 			{
-				//Wyœwietlenie dostêpnych kopalni oraz wybor jednej z nich poprzez cyfrê.
-				std::cout << "Dostepne kopalnie: " << '\n';
-				uint16_t numerKopalni = 0;
-				for(auto iterator = kopalnie.begin(); iterator != kopalnie.end(); iterator ++)
+				//Sprawdzanie czy kod ascii z wciœniêtego klawisza to cyfra lub znak nowej linii.
+				if((jakieZdarzenie == 48 && !jakaKopalnia.empty())
+				|| (jakieZdarzenie >= 49 && jakieZdarzenie <= 57))
 				{
-					std::cout << "Kopalnia " << numerKopalni << ". Ilosc pracownikow: ";
-					std::cout << iterator -> size() << '\n';
-					numerKopalni ++;
+					jakaKopalnia += jakieZdarzenie;
+					GraficznyInterfejsUzytkownika::UstawTekstObiektuTekstu(1, jakaKopalnia);
 				}
-				std::cout << "Wybierz kopalnie poprzez wpisanie numeru i nacisnij enter: ";
-				uint64_t wyborKopalni = 0;
-				std::string wyborKopalniInput;
-				std::cin >> wyborKopalniInput;
-				system("cls");
-				if(czyPoprawnaLiczba(wyborKopalniInput, kopalnie.size(), wyborKopalni))
-				{
-					//Przesuniêcie iteratora na wybran¹ kopalnie.
-					std::list <std::list <Pracownik>>::iterator iterator;
-					uint64_t kopiaWyboruKopalni = wyborKopalni;
-					if(wyborKopalni > kopalnie.size() / 2)	//Je¿eli iterator ma byæ dalej ni¿ po³owa listy.
-					{
-						iterator = kopalnie.end();
-						wyborKopalni = kopalnie.size() - wyborKopalni;
-						while(wyborKopalni --)
-						{
-							iterator --;
-						}
-					}
-					else	//Je¿eli iterator ma byæ przed po³ow¹ listy.
-					{
-						iterator = kopalnie.begin();
-						while(wyborKopalni --)
-						{
-							iterator ++;
-						}
-					}
-					ObslugaKopalni(* iterator, kopiaWyboruKopalni, czyTrwaGra, kasa, watki,
-					blokadaDostepuDoKopalni, powiadomienieODostepieDoKopalni, powiadomienie);
-				}
-				break;
+				jakieZdarzenie = GraficznyInterfejsUzytkownika::ObslugaZdarzenOkna();
 			}
-			case '2':
+			if(jakieZdarzenie == 0)	//Sprawdzenie czy zamkniêto okno.
 			{
-				//Kupno kopalni.
-				if(kopalnie.size() == 1000)
+				Gracz::czyTrwaGra = false;
+			}
+			else
+			{
+				Gracz::wybranyNumerKopalni = ZamienStringaNaLiczbe(jakaKopalnia);
+				if(Gracz::wybranyNumerKopalni > 0 && Gracz::wybranyNumerKopalni <= Gracz::ZwrocOstatniNumerKopalni())
 				{
-					std::cout << "Niemozesz juz kupic wiecej kopalni" << '\n';
+					GraficznyInterfejsUzytkownika::ZmienWysokoscPrzycisku(1, 40.f);
+					GraficznyInterfejsUzytkownika::ZmienWysokoscPrzycisku(2, 40.f);
+					ObslugaKopalni();
+					UtworzElementyGraficzneGry();
 				}
 				else
 				{
-					powiadomienie = false;
-					uint64_t kosztKopalni = (kopalnie.size() + 1) * 25000;
-					std::cout << "Koszt nowej kopalni: " << kosztKopalni << '\n';
-					std::cout << "Czy chcesz kupic nowa kopalnie?" << '\n';
-					std::cout << "1. Tak" << '\n' << "2. Nie" << '\n' << "Dokonaj wyboru: ";
-					char wyborKupna = _getch();
-					system("cls");
-					if(wyborKupna == '1' && kasa >= kosztKopalni)
-					{
-						std::cout << "Trwa kupowanie..." << '\n';
-						std::unique_lock <std::mutex> blokada(blokadaDostepuDoKopalni);
-						kasa -= kosztKopalni;
-						kopalnie.emplace_back();
-						std::cout << "Zakup udany ^^" << '\n';
-					}
-					else if(wyborKupna == '1' && kasa < kosztKopalni)
-					{
-						std::cout << "Niestac cie na nowa kopalnie" << '\n';
-					}
-					powiadomienie = true;
-					powiadomienieODostepieDoKopalni.notify_one();
-				}
-				break;
-			}
-			case '3':
-			{
-				KopanieSamemu(kasa);
-				system("cls");
-				break;
-			}
-			case '5':
-			{
-				czyTrwaGra = false;
-				break;
-			}
-			default:
-			{
-				if(wybor != '4')
-				{
-					std::cout << "Dokonano zlego wyboru" << '\n';
+					GraficznyInterfejsUzytkownika::UstawTekstObiektuTekstu(1, "Wejdz do kopalni");
 				}
 			}
+			GraficznyInterfejsUzytkownika::ZmienWysokoscPrzycisku(1, 40.f);
+			break;
+		}
+		case 2:
+		{
+			Gracz::KupKopalnie();
+			GraficznyInterfejsUzytkownika::UstawTekstObiektuTekstu
+			(2, "Kup nowa kopalnie\nKoszt: " + std::to_string(Gracz::ZwrocKosztKupnaNowejKopalni()));
+			break;
+		}
+		case 3:
+		{
+			KopanieSamemu();
+			UtworzElementyGraficzneGry();
+			break;
+		}
+		case 4:
+		{
+			Gracz::czyTrwaGra = false;
+			break;
 		}
 	}
+}
 
-	std::cout << "Trwa zapisywanie oraz zamykanie gry..." << '\n';
-	if(czyAutoSave)	//Zamkniêcie autoSavea.
+void ZamykanieGry()
+{
+	if(GraficznyInterfejsUzytkownika::okno.isOpen())
 	{
-		//Je¿eli autoSave dzia³a³, wyœwietlenie komunikatu.
-		if(bool czyZapisano = autoSaveWTle.get(); czyZapisano)
-		{
-			std::cout << "Zapisano ^^" << '\n';
-		}
-		else
-		{
-			std::cout << "Nieudalo sie zapisac gry, sprawdz czy plik save.txt";
-			std::cout << "jest w tej samej sciezce co gra." << '\n';
-		}
+		GraficznyInterfejsUzytkownika::UstawWlasciwosciDlaDodatkowegoTekstu
+		("Trwa zapisywanie...", {25.f, 24.f}, sf::Color(0, 0, 0));
+	}
+	Gracz::OczyscWatki();
+	if(Gracz::czyAktywnyAutoSave)	//Zamkniêcie autoSavea.
+	{
+		Gracz::SprawdzCzyAutoSaveDzialal();
 	}
 	else	//Je¿eli autosave jest wy³¹czony, zapisz poprzez u¿ycie tej funkjci.
 	{
-		Zapis(kasa, kopalnie);
+		Zapis();
 	}
+	GraficznyInterfejsUzytkownika::ZmienWysokoscPrzycisku(2, 40.f);	//Przywrócenie poprzedniej wysokoœci.
 }
